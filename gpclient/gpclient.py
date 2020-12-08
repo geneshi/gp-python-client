@@ -68,6 +68,7 @@ class GPClient():
     __ENCODINGFORMAT = 'utf-8'
 
     __BUNDLES_PATH = '/v2/bundles'
+    __XLIFF_PATH = '/v2/xliff'
 
     __AUTHORIZATION_HEADER_KEY = 'Authorization'
     __DATE_HEADER_KEY = 'GP-Date'
@@ -84,6 +85,7 @@ class GPClient():
     __RESPONSE_RESOURCE_ENTRY_KEY = 'resourceEntry'
     __RESPONSE_TRANSLATION_KEY = 'value'
     __RESPONSE_SOURCE_VALUE_KEY = 'sourceValue'
+    __RESPONSE_TRANSLATION_STATUS_KEY = 'translationStatusMetricsByLanguage'
 
     __serviceAccount = None
     __cacheTimeout = 10
@@ -265,24 +267,28 @@ class GPClient():
         httpStatus = r.status_code
         logging.info('HTTP status code: %s', httpStatus)
 
-        if httpStatus == requests.codes.ok or \
-            httpStatus == requests.codes.created:
-            jsonR = r.json()
-            if jsonR:
-                statusStr = 'REST response status: %s' % \
-                    jsonR.get(self.__RESPONSE_STATUS_KEY)
-                msgStr = 'REST response message: %s' % \
-                    jsonR.get(self.__RESPONSE_MESSAGE_KEY)
-                logging.info(statusStr)
-                logging.info(msgStr)
-                return jsonR
-            else:
-                logging.warning('Unable to parse JSON body.')
-                logging.warning(r.text)
-                return None
-        logging.warning('Invalid HTTP status code.')
-        logging.warning(r.text)
-        return r.json()
+        content_type = r.headers['content-type']
+        if content_type == 'application/json':
+            if httpStatus == requests.codes.ok or \
+                httpStatus == requests.codes.created:
+                jsonR = r.json()
+                if jsonR:
+                    statusStr = 'REST response status: %s' % \
+                        jsonR.get(self.__RESPONSE_STATUS_KEY)
+                    msgStr = 'REST response message: %s' % \
+                        jsonR.get(self.__RESPONSE_MESSAGE_KEY)
+                    logging.info(statusStr)
+                    logging.info(msgStr)
+                    return jsonR
+                else:
+                    logging.warning('Unable to parse JSON body.')
+                    logging.warning(r.text)
+                    return None
+            logging.warning('Invalid HTTP status code.')
+            logging.warning(r.text)
+            return r.json()
+        elif content_type == 'application/xliff+xml':
+            return r.content.decode('utf-8')
 
     def __perform_rest_call(self, requestURL, params=None, headers=None, restType='GET', body=None):
         """Returns the JSON representation of the response if the response
@@ -615,3 +621,29 @@ class GPClient():
             translations = NullTranslations()
 
         return translations
+
+    def get_translation_status(self, bundleId):
+        """``GET /{serviceInstanceId}/v2/bundles/{bundleId}``
+
+                Gets the bundle's information.
+                """
+        url = self.__get_base_bundle_url() + '/' + bundleId
+        response = self.__perform_rest_call(requestURL=url, params=[("fields", "translationStatusMetricsByLanguage")])
+
+        if not response:
+            return None
+
+        bundleData = response.get(self.__RESPONSE_TRANSLATION_STATUS_KEY)
+
+        return bundleData
+
+    def get_resource_map(self, bundleId):
+        return self.__get_keys_map(bundleId, 'en')
+
+    def get_xliff(self, bundleId):
+        url = self.__serviceAccount.get_url() + '/' + self.__serviceAccount.get_instance_id() + \
+              self.__XLIFF_PATH + '/bundles/en/en'
+
+        xliff_content = self.__perform_rest_call(requestURL=url, params=[("bundles", bundleId)])
+
+        return xliff_content
