@@ -210,7 +210,10 @@ class GPServiceAccount():
             # credentials: { ... }
             credentials = credentials["credentials"]
         if credentials:
-            return (credentials["url"], credentials["instanceId"], credentials["userId"], credentials["password"], credentials["apikey"])
+            apikey = None
+            if 'apikey' in credentials:
+                apikey = credentials["apikey"]
+            return (credentials["url"], credentials["instanceId"], credentials["userId"], credentials["password"], apikey)
         return (None, None, None, None, None)
             
 
